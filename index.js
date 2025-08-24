@@ -24,8 +24,30 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+      // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+//    
+  const bookCollection = client.db("libraryDB").collection("books");
+  app.get("/books",async (req,res)=>{
+    try{
+      const result = await bookCollection.find().toArray();
+      res.send(result)
+    }
+    catch(err){
+      res.status(500).send({error:"Failed to fetch books"})
+    }
+  })
+  app.get("/books/category/:category", async(req,res)=>{
+    try{
+      const category = req.params.category;
+      const result = await bookCollection.find({category: category}).toArray();
+      res.send(result);
+    }
+    catch (err){
+      res.status(500).send({error:"Failed to fetch category books"});
+    }
+  })
+    
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
