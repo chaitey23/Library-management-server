@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 
 
@@ -47,7 +47,25 @@ async function run() {
       res.status(500).send({error:"Failed to fetch category books"});
     }
   })
-    
+  app.get("/book/:id", async(req,res)=>{
+    const id = req.params.id;
+    const book = await bookCollection.findOne({_id: new ObjectId(id)})
+    res.send(book)
+  })
+ app.get("/books",async(req,res)=>{
+  const result = await bookCollection.find().toArray;
+  res.send(result)
+ })
+    // app.post("/books", async (req,res)=>{
+    //   try{
+    //     const newBook = req.body;
+    //   const result = await bookCollection.insertOne(newBook);
+    //       res.status(201).send(result);
+    //   } catch(error){
+    //         res.status(500).send({ message: "Failed to add book" });
+
+    //   }
+    // })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
