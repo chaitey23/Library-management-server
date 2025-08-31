@@ -56,16 +56,16 @@ async function run() {
   const result = await bookCollection.find().toArray;
   res.send(result)
  })
-    // app.post("/books", async (req,res)=>{
-    //   try{
-    //     const newBook = req.body;
-    //   const result = await bookCollection.insertOne(newBook);
-    //       res.status(201).send(result);
-    //   } catch(error){
-    //         res.status(500).send({ message: "Failed to add book" });
+    app.post("/books", async (req,res)=>{
+      try{
+        const newBook = req.body;
+      const result = await bookCollection.insertOne(newBook);
+          res.status(201).send(result);
+      } catch(error){
+            res.status(500).send({ message: "Failed to add book" });
 
-    //   }
-    // })
+      }
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
