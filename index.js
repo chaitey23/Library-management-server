@@ -66,6 +66,23 @@ async function run() {
 
       }
     })
+    app.put("/book/:id",async(req,res)=>{
+      try{
+        const id = req.params.id;
+        const updateData = req.body;
+        const result = await bookCollection.updateOne(
+          {
+            _id:new ObjectId(id)
+          },
+          {
+            $set : updateData
+          }
+        )
+        res.send(result);
+      } catch(err){
+        res.status(500).send({message:"Failed to update book"})
+      }
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
