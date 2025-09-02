@@ -4,13 +4,8 @@ const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
-
-
-
 app.use(cors())
 app.use(express.json());
- 
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.pkaqrby.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -24,65 +19,100 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-      // Connect the client to the server	(optional starting in v4.7)
+    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-//    
-  const bookCollection = client.db("libraryDB").collection("books");
-  app.get("/books",async (req,res)=>{
-    try{
-      const result = await bookCollection.find().toArray();
-      res.send(result)
-    }
-    catch(err){
-      res.status(500).send({error:"Failed to fetch books"})
-    }
-  })
-  app.get("/books/category/:category", async(req,res)=>{
-    try{
-      const category = req.params.category;
-      const result = await bookCollection.find({category: category}).toArray();
-      res.send(result);
-    }
-    catch (err){
-      res.status(500).send({error:"Failed to fetch category books"});
-    }
-  })
-  app.get("/book/:id", async(req,res)=>{
-    const id = req.params.id;
-    const book = await bookCollection.findOne({_id: new ObjectId(id)})
-    res.send(book)
-  })
- app.get("/books",async(req,res)=>{
-  const result = await bookCollection.find().toArray;
-  res.send(result)
- })
-    app.post("/books", async (req,res)=>{
-      try{
+    //    
+    const bookCollection = client.db("libraryDB").collection("books");
+    const borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
+    app.get("/books", async (req, res) => {
+      try {
+        const result = await bookCollection.find().toArray();
+        res.send(result)
+      }
+      catch (err) {
+        res.status(500).send({ error: "Failed to fetch books" })
+      }
+    })
+    app.get("/books/category/:category", async (req, res) => {
+      try {
+        const category = req.params.category;
+        const result = await bookCollection.find({ category: category }).toArray();
+        res.send(result);
+      }
+      catch (err) {
+        res.status(500).send({ error: "Failed to fetch category books" });
+      }
+    })
+    app.get("/book/:id", async (req, res) => {
+      const id = req.params.id;
+      const book = await bookCollection.findOne({ _id: new ObjectId(id) })
+      res.send(book)
+    })
+    app.post("/books", async (req, res) => {
+      try {
         const newBook = req.body;
-      const result = await bookCollection.insertOne(newBook);
-          res.status(201).send(result);
-      } catch(error){
-            res.status(500).send({ message: "Failed to add book" });
+        const result = await bookCollection.insertOne(newBook);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to add book" });
 
       }
     })
-    app.put("/book/:id",async(req,res)=>{
-      try{
+    app.put("/book/:id", async (req, res) => {
+      try {
         const id = req.params.id;
         const updateData = req.body;
         const result = await bookCollection.updateOne(
           {
-            _id:new ObjectId(id)
+            _id: new ObjectId(id)
           },
           {
-            $set : updateData
+            $set: updateData
           }
         )
         res.send(result);
-      } catch(err){
-        res.status(500).send({message:"Failed to update book"})
+      } catch (err) {
+        res.status(500).send({ message: "Failed to update book" })
       }
     })
+    // borrowed books
+   app.post('/borrow/:id',async(req,res)=>{
+    try{
+      const id = req.params.id;
+
+      if(!ObjectId.isValid(id)){
+        return res.status(400).send({message:"Invalid Book ID"});
+      }
+    const{userName,userEmail,returnDate}= req.body;
+    const book = await bookCollection.findOne({_id: new ObjectId(id)})
+    if(!book) {
+      return res.status(404).send({message:"Book not Found"})
+    }
+    if(book.quantity <= 0 ){
+      return res.status(400).send({message:"No copies available"})
+    }
+    const borrowedInfo = {
+      bookId: id,
+      bookName: book.name,
+      userName,
+      userEmail,
+      returnDate,
+      borrowedAt: new Date()
+    }
+    await borrowedCollection.insertOne(borrowedInfo);
+    await bookCollection.updateOne(
+      {_id: new ObjectId(id)},
+      {$inc: {quantity: -1}}
+    )
+    res.send({message:"Book borrowed successfully"})
+    }catch (err){
+      console.error("borrow Error:",err)
+      res.status(500).send({message:"Failed to borrow book", error: err.message})
+    }
+    
+   });
+
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -93,10 +123,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-app.get('/', (req,res)=>{
-    res.send(" Library Management System Server is Running...")
+app.get('/', (req, res) => {
+  res.send(" Library Management System Server is Running...")
 })
-app.listen(port, () =>{
-    console.log(`Server is running on port:${port}`);
-    
+app.listen(port, () => {
+  console.log(`Server is running on port:${port}`);
+
 })
