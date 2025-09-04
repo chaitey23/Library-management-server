@@ -84,6 +84,11 @@ async function run() {
           return res.status(400).send({ message: "Invalid Book ID" });
         }
         const { userName, userEmail, returnDate } = req.body;
+        const alreadyBorrowed =await borrowedCollection.findOne({bookId:id,userEmail,returned : {$ne:true}})
+        
+        if(alreadyBorrowed){
+          return res.status(400).send({message:"You already borrowed this book. Please return it first."})
+        }
         const book = await bookCollection.findOne({ _id: new ObjectId(id) })
         if (!book) {
           return res.status(404).send({ message: "Book not Found" })
@@ -100,7 +105,8 @@ async function run() {
           userName,
           userEmail,
           returnDate,
-          borrowedAt: new Date()
+          borrowedAt: new Date(),
+          returned: false
         }
         await borrowedCollection.insertOne(borrowedInfo);
         await bookCollection.updateOne(
