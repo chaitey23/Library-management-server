@@ -4,6 +4,13 @@ const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
+const admin = require("firebase-admin");
+
+    const serviceAccount = require("./firebase-admin-key.json");
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
 app.use(cors())
 app.use(express.json());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.pkaqrby.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -16,6 +23,20 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+async function verifyFirebaseToken(req,res,next){
+  const authHeader = req.headers?.authorization;
+  if(!authHeader || !authHeader.startsWith('Bearer ')){
+    return res.status(401).json({message:"Unauthorized Token"})
+  }
+  const idToken = authHeader.split(' ')[1];
+  try{
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next()
+  }catch(err){
+    return res.status(401).json({message:"Invalid or expired token"})
+  }
+}
 
 async function run() {
   try {
@@ -24,6 +45,8 @@ async function run() {
     //    
     const bookCollection = client.db("libraryDB").collection("books");
     const borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
+    
+
     app.get("/books", async (req, res) => {
       try {
         const result = await bookCollection.find().toArray();
@@ -48,7 +71,7 @@ async function run() {
       const book = await bookCollection.findOne({ _id: new ObjectId(id) })
       res.send(book)
     })
-    app.post("/books", async (req, res) => {
+    app.post("/books",verifyFirebaseToken, async (req, res) => {
       try {
         const newBook = req.body;
         const result = await bookCollection.insertOne(newBook);
@@ -58,7 +81,7 @@ async function run() {
 
       }
     })
-    app.put("/book/:id", async (req, res) => {
+    app.put("/book/:id",verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const updateData = req.body;
@@ -76,7 +99,7 @@ async function run() {
       }
     })
     // borrowed books
-    app.post('/borrow/:id', async (req, res) => {
+    app.post('/borrow/:id',verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -84,10 +107,10 @@ async function run() {
           return res.status(400).send({ message: "Invalid Book ID" });
         }
         const { userName, userEmail, returnDate } = req.body;
-        const alreadyBorrowed =await borrowedCollection.findOne({bookId:id,userEmail,returned : {$ne:true}})
-        
-        if(alreadyBorrowed){
-          return res.status(400).send({message:"You already borrowed this book. Please return it first."})
+        const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
+
+        if (alreadyBorrowed) {
+          return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
         }
         const book = await bookCollection.findOne({ _id: new ObjectId(id) })
         if (!book) {
@@ -120,10 +143,10 @@ async function run() {
       }
 
     });
-    app.get("/borrowed-books/:email", async (req, res) => {
+    app.get("/borrowed-books/:email",verifyFirebaseToken, async (req, res) => {
       try {
         const userEmail = req.params.email;
-        const borrowedBooks = await borrowedCollection.find({ userEmail,returned : {$ne : true} })
+        const borrowedBooks = await borrowedCollection.find({ userEmail, returned: { $ne: true } })
           .toArray()
         res.send(borrowedBooks)
       } catch (err) {
@@ -131,14 +154,14 @@ async function run() {
         res.status(500).send({ message: "Failed to fetch borrowed books" })
       }
     })
-    app.put("/borrowed-books/return/:id", async (req, res) => {
+    app.put("/borrowed-books/return/:id",verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         if (!ObjectId.isValid(id)) {
           return res.status(400).send({ message: "Invalid borrowed book ID" })
         }
-    const objectId = new ObjectId(id);
-        const borrowedRecord = await borrowedCollection.findOne({ _id:objectId });
+        const objectId = new ObjectId(id);
+        const borrowedRecord = await borrowedCollection.findOne({ _id: objectId });
         if (!borrowedRecord) {
           return res.status(404).send({ message: "Borrowed record not found" });
         }
