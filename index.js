@@ -6,12 +6,12 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const admin = require("firebase-admin");
 
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g,'\n')
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n')
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 app.use(cors())
 app.use(express.json());
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.pkaqrby.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -24,18 +24,18 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
-async function verifyFirebaseToken(req,res,next){
+async function verifyFirebaseToken(req, res, next) {
   const authHeader = req.headers?.authorization;
-  if(!authHeader || !authHeader.startsWith('Bearer ')){
-    return res.status(401).json({message:"Unauthorized Token"})
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "Unauthorized Token" })
   }
   const idToken = authHeader.split(' ')[1];
-  try{
+  try {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     req.user = decodedToken;
     next()
-  }catch(err){
-    return res.status(401).json({message:"Invalid or expired token"})
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token" })
   }
 }
 
@@ -46,7 +46,7 @@ async function run() {
     //    
     const bookCollection = client.db("libraryDB").collection("books");
     const borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
-    
+
 
     app.get("/books", async (req, res) => {
       try {
@@ -72,7 +72,7 @@ async function run() {
       const book = await bookCollection.findOne({ _id: new ObjectId(id) })
       res.send(book)
     })
-    app.post("/books",verifyFirebaseToken, async (req, res) => {
+    app.post("/books", verifyFirebaseToken, async (req, res) => {
       try {
         const newBook = req.body;
         const result = await bookCollection.insertOne(newBook);
@@ -82,7 +82,7 @@ async function run() {
 
       }
     })
-    app.put("/book/:id",verifyFirebaseToken, async (req, res) => {
+    app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         const updateData = req.body;
@@ -100,7 +100,7 @@ async function run() {
       }
     })
     // borrowed books
-    app.post('/borrow/:id',verifyFirebaseToken, async (req, res) => {
+    app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -109,7 +109,9 @@ async function run() {
         }
         const { userName, userEmail, returnDate } = req.body;
         const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
-
+        if (borrowedCount >= 3) {
+          return res.status(400).send({ message: "You cannot borrow more than 3 books." });
+        }
         if (alreadyBorrowed) {
           return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
         }
@@ -144,7 +146,7 @@ async function run() {
       }
 
     });
-    app.get("/borrowed-books/:email",verifyFirebaseToken, async (req, res) => {
+    app.get("/borrowed-books/:email", verifyFirebaseToken, async (req, res) => {
       try {
         const userEmail = req.params.email;
         const borrowedBooks = await borrowedCollection.find({ userEmail, returned: { $ne: true } })
@@ -155,7 +157,7 @@ async function run() {
         res.status(500).send({ message: "Failed to fetch borrowed books" })
       }
     })
-    app.put("/borrowed-books/return/:id",verifyFirebaseToken, async (req, res) => {
+    app.put("/borrowed-books/return/:id", verifyFirebaseToken, async (req, res) => {
       try {
         const id = req.params.id;
         if (!ObjectId.isValid(id)) {
