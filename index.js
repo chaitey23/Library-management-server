@@ -109,9 +109,11 @@ async function run() {
         }
         const { userName, userEmail, returnDate } = req.body;
         const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
+        const borrowedCount = await borrowedCollection.countDocuments({ userEmail, returned: { $ne: true } });
         if (borrowedCount >= 3) {
           return res.status(400).send({ message: "You cannot borrow more than 3 books." });
         }
+
         if (alreadyBorrowed) {
           return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
         }
