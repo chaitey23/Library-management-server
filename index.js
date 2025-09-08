@@ -24,6 +24,7 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
 async function verifyFirebaseToken(req, res, next) {
   const authHeader = req.headers?.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -39,169 +40,179 @@ async function verifyFirebaseToken(req, res, next) {
   }
 }
 
+// Initialize database collections
+let bookCollection, borrowedCollection;
+
+
+app.get("/books", async (req, res) => {
+  try {
+    const result = await bookCollection.find().toArray();
+    res.send(result)
+    res.send({ message: "working" })
+  }
+  catch (err) {
+    res.status(500).send({ error: "Failed to fetch books" })
+  }
+});
+
+app.get("/books/category/:category", async (req, res) => {
+  try {
+    const category = req.params.category;
+    const result = await bookCollection.find({ category: category }).toArray();
+    res.send(result);
+  }
+  catch (err) {
+    res.status(500).send({ error: "Failed to fetch category books" });
+  }
+});
+
+app.get("/book/:id", async (req, res) => {
+  const id = req.params.id;
+  const book = await bookCollection.findOne({ _id: new ObjectId(id) })
+  res.send(book)
+});
+
+app.post("/books", verifyFirebaseToken, async (req, res) => {
+  try {
+    const newBook = req.body;
+    const result = await bookCollection.insertOne(newBook);
+    res.status(201).send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to add book" });
+  }
+});
+
+app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updateData = req.body;
+    const result = await bookCollection.updateOne(
+      {
+        _id: new ObjectId(id)
+      },
+      {
+        $set: updateData
+      }
+    )
+    res.send(result);
+  } catch (err) {
+    res.status(500).send({ message: "Failed to update book" })
+  }
+});
+
+// borrowed books
+app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid Book ID" });
+    }
+    const { userName, userEmail, returnDate } = req.body;
+    const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
+    const borrowedCount = await borrowedCollection.countDocuments({ userEmail, returned: { $ne: true } });
+    if (borrowedCount >= 3) {
+      return res.status(400).send({ message: "You cannot borrow more than 3 books." });
+    }
+
+    if (alreadyBorrowed) {
+      return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
+    }
+    const book = await bookCollection.findOne({ _id: new ObjectId(id) })
+    if (!book) {
+      return res.status(404).send({ message: "Book not Found" })
+    }
+    if (book.quantity <= 0) {
+      return res.status(400).send({ message: "No copies available" })
+    }
+    const borrowedInfo = {
+      bookId: id,
+      bookName: book.name,
+      bookImage: book.image,
+      bookCategory: book.category,
+      bookAuthor: book.author,
+      userName,
+      userEmail,
+      returnDate,
+      borrowedAt: new Date(),
+      returned: false
+    }
+    await borrowedCollection.insertOne(borrowedInfo);
+    await bookCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $inc: { quantity: -1 } }
+    )
+    res.send({ message: "Book borrowed successfully" })
+  } catch (err) {
+    console.error("borrow Error:", err)
+    res.status(500).send({ message: "Failed to borrow book", error: err.message })
+  }
+});
+
+app.get("/borrowed-books/:email", verifyFirebaseToken, async (req, res) => {
+  try {
+    const userEmail = req.params.email;
+    const borrowedBooks = await borrowedCollection.find({ userEmail, returned: { $ne: true } })
+      .toArray()
+    res.send(borrowedBooks)
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Failed to fetch borrowed books" })
+  }
+});
+
+app.put("/borrowed-books/return/:id", verifyFirebaseToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid borrowed book ID" })
+    }
+    const objectId = new ObjectId(id);
+    const borrowedRecord = await borrowedCollection.findOne({ _id: objectId });
+    if (!borrowedRecord) {
+      return res.status(404).send({ message: "Borrowed record not found" });
+    }
+    await borrowedCollection.updateOne(
+      { _id: objectId },
+      { $set: { returned: true, returnedAt: new Date() } }
+    )
+    await bookCollection.updateOne(
+      { _id: new ObjectId(borrowedRecord.bookId) },
+      { $inc: { quantity: 1 } }
+    )
+    res.send({ message: "Book returned successfully" })
+  } catch (err) {
+    console.error(err)
+    res.status(500).send({ message: "Failed to return book", error: err.message });
+  }
+});
+
+
+app.get('/', (req, res) => {
+  res.send(" Library Management System Server is Running...")
+});
+
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
+    // Connect the client to the server
     await client.connect();
-    //    
-    const bookCollection = client.db("libraryDB").collection("books");
-    const borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
 
-
-    app.get("/books/get-all", async (req, res) => {
-      try {
-        // const result = await bookCollection.find().toArray();
-        // res.send(result)
-        res.send({message:"working"})
-      }
-      catch (err) {
-        res.status(500).send({ error: "Failed to fetch books" })
-      }
-    })
-    app.get("/books/category/:category", async (req, res) => {
-      try {
-        const category = req.params.category;
-        const result = await bookCollection.find({ category: category }).toArray();
-        res.send(result);
-      }
-      catch (err) {
-        res.status(500).send({ error: "Failed to fetch category books" });
-      }
-    })
-    app.get("/book/:id", async (req, res) => {
-      const id = req.params.id;
-      const book = await bookCollection.findOne({ _id: new ObjectId(id) })
-      res.send(book)
-    })
-    app.post("/books", verifyFirebaseToken, async (req, res) => {
-      try {
-        const newBook = req.body;
-        const result = await bookCollection.insertOne(newBook);
-        res.status(201).send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to add book" });
-
-      }
-    })
-    app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const updateData = req.body;
-        const result = await bookCollection.updateOne(
-          {
-            _id: new ObjectId(id)
-          },
-          {
-            $set: updateData
-          }
-        )
-        res.send(result);
-      } catch (err) {
-        res.status(500).send({ message: "Failed to update book" })
-      }
-    })
-    // borrowed books
-    app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-
-        if (!ObjectId.isValid(id)) {
-          return res.status(400).send({ message: "Invalid Book ID" });
-        }
-        const { userName, userEmail, returnDate } = req.body;
-        const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
-        const borrowedCount = await borrowedCollection.countDocuments({ userEmail, returned: { $ne: true } });
-        if (borrowedCount >= 3) {
-          return res.status(400).send({ message: "You cannot borrow more than 3 books." });
-        }
-
-        if (alreadyBorrowed) {
-          return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
-        }
-        const book = await bookCollection.findOne({ _id: new ObjectId(id) })
-        if (!book) {
-          return res.status(404).send({ message: "Book not Found" })
-        }
-        if (book.quantity <= 0) {
-          return res.status(400).send({ message: "No copies available" })
-        }
-        const borrowedInfo = {
-          bookId: id,
-          bookName: book.name,
-          bookImage: book.image,
-          bookCategory: book.category,
-          bookAuthor: book.author,
-          userName,
-          userEmail,
-          returnDate,
-          borrowedAt: new Date(),
-          returned: false
-        }
-        await borrowedCollection.insertOne(borrowedInfo);
-        await bookCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $inc: { quantity: -1 } }
-        )
-        res.send({ message: "Book borrowed successfully" })
-      } catch (err) {
-        console.error("borrow Error:", err)
-        res.status(500).send({ message: "Failed to borrow book", error: err.message })
-      }
-
-    });
-    app.get("/borrowed-books/:email", verifyFirebaseToken, async (req, res) => {
-      try {
-        const userEmail = req.params.email;
-        const borrowedBooks = await borrowedCollection.find({ userEmail, returned: { $ne: true } })
-          .toArray()
-        res.send(borrowedBooks)
-      } catch (err) {
-        console.error(err);
-        res.status(500).send({ message: "Failed to fetch borrowed books" })
-      }
-    })
-    app.put("/borrowed-books/return/:id", verifyFirebaseToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-        if (!ObjectId.isValid(id)) {
-          return res.status(400).send({ message: "Invalid borrowed book ID" })
-        }
-        const objectId = new ObjectId(id);
-        const borrowedRecord = await borrowedCollection.findOne({ _id: objectId });
-        if (!borrowedRecord) {
-          return res.status(404).send({ message: "Borrowed record not found" });
-        }
-        await borrowedCollection.updateOne(
-          { _id: objectId },
-          { $set: { returned: true, returnedAt: new Date() } }
-        )
-        await bookCollection.updateOne(
-          { _id: new ObjectId(borrowedRecord.bookId) },
-          { $inc: { quantity: 1 } }
-        )
-        res.send({ message: "Book returned successfully" })
-      } catch (err) {
-        console.error(err)
-        res.status(500).send({ message: "Failed to return book", error: err.message });
-
-      }
-
-    })
+    // Initialize collections after connection
+    bookCollection = client.db("libraryDB").collection("books");
+    borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+
+    // Start the server only after successful MongoDB connection
+    app.listen(port, () => {
+      console.log(`Server is running on port:${port}`);
+    });
+  } catch (error) {
+    console.error("Failed to connect to MongoDB", error);
+    process.exit(1); // Exit the process if MongoDB connection fails
   }
 }
+
 run().catch(console.dir);
-
-app.get('/', (req, res) => {
-  res.send(" Library Management System Server is Running...")
-})
-app.listen(port, () => {
-  console.log(`Server is running on port:${port}`);
-
-})
