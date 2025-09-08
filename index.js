@@ -48,9 +48,9 @@ async function run() {
     const borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
 
 
-    app.get("/books", async (req, res) => {
+    app.get("/books",  (req, res) => {
       try {
-        const result = await bookCollection.find().toArray();
+        const result =  bookCollection.find().toArray();
         res.send(result)
       }
       catch (err) {
