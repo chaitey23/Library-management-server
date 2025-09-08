@@ -50,8 +50,9 @@ async function run() {
 
     app.get("/books/get-all", async (req, res) => {
       try {
-        const result = await bookCollection.find().toArray();
-        res.send(result)
+        // const result = await bookCollection.find().toArray();
+        // res.send(result)
+        res.send({message:"working"})
       }
       catch (err) {
         res.status(500).send({ error: "Failed to fetch books" })
