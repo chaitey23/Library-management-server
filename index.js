@@ -108,10 +108,19 @@ app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
       return res.status(400).send({ message: "Invalid Book ID" });
     }
     const { userName, userEmail, returnDate } = req.body;
+    //  Check already borrowed the same book
     const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
     if (alreadyBorrowed) {
       return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
     }
+    //  Check maximum 3 books limit
+    const borrowedCount = await borrowedCollection.countDocuments({ userEmail, returned: { $ne: true } });
+    if (borrowedCount >= 3) {
+      return res.status(400).send({ message: "You cannot borrow more than 3 books at a time." })
+    }
+
+
+
     const book = await bookCollection.findOne({ _id: new ObjectId(id) })
     if (!book) {
       return res.status(404).send({ message: "Book not Found" })
