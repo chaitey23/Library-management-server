@@ -126,8 +126,8 @@ app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
     }
     const borrowedInfo = {
       bookId: id,
-      bookName: book.name,
-      bookImage: book.image,
+      bookName: book.bookName,
+      bookImage: book.bookImage,
       bookCategory: book.category,
       bookAuthor: book.author,
       userName,
