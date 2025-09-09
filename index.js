@@ -109,11 +109,6 @@ app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
     }
     const { userName, userEmail, returnDate } = req.body;
     const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
-    const borrowedCount = await borrowedCollection.countDocuments({ userEmail, returned: { $ne: true } });
-    if (borrowedCount >= 3) {
-      return res.status(400).send({ message: "You cannot borrow more than 3 books." });
-    }
-
     if (alreadyBorrowed) {
       return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
     }
@@ -194,7 +189,7 @@ app.get('/', (req, res) => {
 async function run() {
   try {
     // Connect the client to the server
-    await client.connect();
+    // await client.connect();
 
     // Initialize collections after connection
     bookCollection = client.db("libraryDB").collection("books");
@@ -205,9 +200,9 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     // Start the server only after successful MongoDB connection
-    // app.listen(port, () => {
-    //   console.log(`Server is running on port:${port}`);
-    // });
+    app.listen(port, () => {
+      console.log(`Server is running on port:${port}`);
+    });
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
     process.exit(1); // Exit the process if MongoDB connection fails
@@ -215,4 +210,3 @@ async function run() {
 }
 
 run().catch(console.dir);
-module.exports = app
