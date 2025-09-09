@@ -48,7 +48,6 @@ app.get("/books", async (req, res) => {
   try {
     const result = await bookCollection.find().toArray();
     res.send(result)
-    res.send({ message: "working" })
   }
   catch (err) {
     res.status(500).send({ error: "Failed to fetch books" })
@@ -206,9 +205,9 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     // Start the server only after successful MongoDB connection
-    app.listen(port, () => {
-      console.log(`Server is running on port:${port}`);
-    });
+    // app.listen(port, () => {
+    //   console.log(`Server is running on port:${port}`);
+    // });
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
     process.exit(1); // Exit the process if MongoDB connection fails
@@ -216,3 +215,4 @@ async function run() {
 }
 
 run().catch(console.dir);
+module.exports = app
