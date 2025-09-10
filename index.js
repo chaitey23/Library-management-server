@@ -42,8 +42,6 @@ async function verifyFirebaseToken(req, res, next) {
 
 // Initialize database collections
 let bookCollection, borrowedCollection;
-
-
 app.get("/books", async (req, res) => {
   try {
     const result = await bookCollection.find().toArray();
@@ -73,7 +71,11 @@ app.get("/book/:id", async (req, res) => {
 
 app.post("/books", verifyFirebaseToken, async (req, res) => {
   try {
-    const newBook = req.body;
+    const newBook = {
+      ...req.body,
+      quantity: Number(req.body.quantity),
+      rating: Number(req.body.rating)
+    }
     const result = await bookCollection.insertOne(newBook);
     res.status(201).send(result);
   } catch (error) {
@@ -84,7 +86,11 @@ app.post("/books", verifyFirebaseToken, async (req, res) => {
 app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
   try {
     const id = req.params.id;
-    const updateData = req.body;
+    const updateData = {
+      ...req.body,
+      quantity: Number(req.body.quantity),
+      rating: Number(req.body.rating)
+    };
     const result = await bookCollection.updateOne(
       {
         _id: new ObjectId(id)
