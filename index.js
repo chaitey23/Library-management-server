@@ -41,7 +41,63 @@ async function verifyFirebaseToken(req, res, next) {
 }
 
 // Initialize database collections
-let bookCollection, borrowedCollection;
+let bookCollection, borrowedCollection, reviewCollection;
+
+
+
+// Add review
+app.post("/book/:id/review", verifyFirebaseToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const { userEmail, userName, rating, comment } = req.body;
+
+    const review = {
+      bookId,
+      userEmail,
+      userName,
+      rating: Number(rating),
+      comment,
+      createdAt: new Date()
+    };
+
+    const result = await reviewCollection.insertOne(review);
+    res.status(201).send({ message: "Review added successfully", reviewId: result.insertedId });
+  } catch (error) {
+    res.status(500).send({ message: "Failed to add review" });
+  }
+});
+
+// Get reviews for a book
+app.get("/book/:id/reviews", verifyFirebaseToken, async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const reviews = await reviewCollection.find({ bookId }).sort({ createdAt: -1 }).toArray();
+    res.send(reviews);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch reviews" });
+  }
+});
+
+// Get featured reviews (for home page)
+app.get("/featured-reviews", verifyFirebaseToken, async (req, res) => {
+  try {
+    const featuredReviews = await reviewCollection.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $limit: 6 },
+      {
+        $lookup: {
+          from: "books",
+          localField: "bookId",
+          foreignField: "_id",
+          as: "bookDetails"
+        }
+      }
+    ]).toArray();
+    res.send(featuredReviews);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to fetch featured reviews" });
+  }
+});
 app.get("/books", async (req, res) => {
   try {
     const result = await bookCollection.find().toArray();
@@ -74,7 +130,8 @@ app.post("/books", verifyFirebaseToken, async (req, res) => {
     const newBook = {
       ...req.body,
       quantity: Number(req.body.quantity),
-      rating: Number(req.body.rating)
+      rating: Number(req.body.rating),
+      price: Number(req.body.price)
     }
     const result = await bookCollection.insertOne(newBook);
     res.status(201).send(result);
@@ -89,7 +146,8 @@ app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
     const updateData = {
       ...req.body,
       quantity: Number(req.body.quantity),
-      rating: Number(req.body.rating)
+      rating: Number(req.body.rating),
+      price: Number(req.body.price)
     };
     const result = await bookCollection.updateOne(
       {
@@ -209,6 +267,7 @@ async function run() {
     // Initialize collections after connection
     bookCollection = client.db("libraryDB").collection("books");
     borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
+    reviewCollection = client.db("libraryDB").collection("reviews")
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
