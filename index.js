@@ -41,63 +41,36 @@ async function verifyFirebaseToken(req, res, next) {
 }
 
 // Initialize database collections
-let bookCollection, borrowedCollection, reviewCollection;
+let bookCollection, borrowedCollection, userCollection;
 
-
-
-// Add review
-app.post("/book/:id/review", verifyFirebaseToken, async (req, res) => {
+app.post("/users", verifyFirebaseToken, async (req, res) => {
   try {
-    const bookId = req.params.id;
-    const { userEmail, userName, rating, comment } = req.body;
+    const { email, name } = req.body;
 
-    const review = {
-      bookId,
-      userEmail,
-      userName,
-      rating: Number(rating),
-      comment,
+    if (!email) {
+      return res.status(400).send({ message: "Email is required" })
+    }
+    if (req.user.email !== email) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+    const existingUser = await userCollection.findOne({ email })
+    if (existingUser) {
+      return res.send({ message: "User already exists" })
+    }
+    const user = {
+      email,
+      name,
+      role: "user",
       createdAt: new Date()
-    };
-
-    const result = await reviewCollection.insertOne(review);
-    res.status(201).send({ message: "Review added successfully", reviewId: result.insertedId });
-  } catch (error) {
-    res.status(500).send({ message: "Failed to add review" });
+    }
+    const result = await userCollection.insertOne(user)
+    res.status(201).send(result)
   }
-});
-
-// Get reviews for a book
-app.get("/book/:id/reviews", verifyFirebaseToken, async (req, res) => {
-  try {
-    const bookId = req.params.id;
-    const reviews = await reviewCollection.find({ bookId }).sort({ createdAt: -1 }).toArray();
-    res.send(reviews);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch reviews" });
+  catch (error) {
+    console.error("Create user error:", error)
+    res.status(500).send({ message: "Failed to create user" })
   }
-});
-
-// Get featured reviews (for home page)
-app.get("/featured-reviews", verifyFirebaseToken, async (req, res) => {
-  try {
-    const featuredReviews = await reviewCollection.aggregate([
-      { $sort: { createdAt: -1 } },
-      { $limit: 6 },
-      {
-        $lookup: {
-          from: "books",
-          localField: "bookId",
-          foreignField: "_id",
-          as: "bookDetails"
-        }
-      }
-    ]).toArray();
-    res.send(featuredReviews);
-  } catch (error) {
-    res.status(500).send({ message: "Failed to fetch featured reviews" });
-  }
-});
+})
 app.get("/books", async (req, res) => {
   try {
     const result = await bookCollection.find().toArray();
@@ -163,7 +136,6 @@ app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
   }
 });
 
-// borrowed books
 app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
   try {
     const id = req.params.id;
@@ -172,12 +144,10 @@ app.post('/borrow/:id', verifyFirebaseToken, async (req, res) => {
       return res.status(400).send({ message: "Invalid Book ID" });
     }
     const { userName, userEmail, returnDate } = req.body;
-    //  Check already borrowed the same book
     const alreadyBorrowed = await borrowedCollection.findOne({ bookId: id, userEmail, returned: { $ne: true } })
     if (alreadyBorrowed) {
       return res.status(400).send({ message: "You already borrowed this book. Please return it first." })
     }
-    //  Check maximum 3 books limit
     const borrowedCount = await borrowedCollection.countDocuments({ userEmail, returned: { $ne: true } });
     if (borrowedCount >= 3) {
       return res.status(400).send({ message: "You cannot borrow more than 3 books at a time." })
@@ -267,7 +237,7 @@ async function run() {
     // Initialize collections after connection
     bookCollection = client.db("libraryDB").collection("books");
     borrowedCollection = client.db("libraryDB").collection("borrowedBooks");
-    reviewCollection = client.db("libraryDB").collection("reviews")
+    userCollection = client.db("libraryDB").collection("users")
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
