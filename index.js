@@ -43,34 +43,25 @@ async function verifyFirebaseToken(req, res, next) {
 // Initialize database collections
 let bookCollection, borrowedCollection, userCollection;
 
-app.post("/users", verifyFirebaseToken, async (req, res) => {
-  try {
-    const { email, name } = req.body;
+app.post("/users", async (req, res) => {
+  const user = req.body;
 
-    if (!email) {
-      return res.status(400).send({ message: "Email is required" })
-    }
-    if (req.user.email !== email) {
-      return res.status(403).send({ message: "Forbidden access" });
-    }
-    const existingUser = await userCollection.findOne({ email })
-    if (existingUser) {
-      return res.send({ message: "User already exists" })
-    }
-    const user = {
-      email,
-      name,
-      role: "user",
-      createdAt: new Date()
-    }
-    const result = await userCollection.insertOne(user)
-    res.status(201).send(result)
+  const isExist = await userCollection.findOne({ email: user.email });
+  if (isExist) {
+    return res.send({ message: "User already exists" });
   }
-  catch (error) {
-    console.error("Create user error:", error)
-    res.status(500).send({ message: "Failed to create user" })
-  }
-})
+
+  const newUser = {
+    name: user.name,
+    email: user.email,
+    role: "user",
+    createdAt: new Date()
+  };
+
+  const result = await userCollection.insertOne(newUser);
+  res.send(result);
+});
+
 app.get("/books", async (req, res) => {
   try {
     const result = await bookCollection.find().toArray();
