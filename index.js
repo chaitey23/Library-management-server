@@ -70,7 +70,7 @@ app.post("/users", async (req, res) => {
   res.send(result);
 });
 
-app.get("users/admin/:email", verifyFirebaseToken, async (req, res) => {
+app.get("/users/admin/:email", verifyFirebaseToken, async (req, res) => {
   const email = req.params.email;
   if (email !== req.user.email) {
     return res.status(403).send({ message: "Forbidden access" });
