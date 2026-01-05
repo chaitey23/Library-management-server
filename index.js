@@ -39,6 +39,14 @@ async function verifyFirebaseToken(req, res, next) {
     return res.status(401).json({ message: "Invalid or expired token" })
   }
 }
+const verifyAdmin = async (req, res, next) => {
+  const email = req.user.email;
+  const user = await userCollection.findOne({ email })
+  if (user?.role == !admin) {
+    return res.status(403).send({ message: "Admin only access" });
+  }
+  next()
+}
 
 // Initialize database collections
 let bookCollection, borrowedCollection, userCollection;
@@ -62,6 +70,14 @@ app.post("/users", async (req, res) => {
   res.send(result);
 });
 
+app.get("users/admin/:email", verifyFirebaseToken, async (req, res) => {
+  const email = req.params.email;
+  if (email !== req.user.email) {
+    return res.status(403).send({ message: "Forbidden access" });
+  }
+  const user = await userCollection.findOne({ email })
+  res.send({ admin: user?.role === "admin" });
+})
 app.get("/books", async (req, res) => {
   try {
     const result = await bookCollection.find().toArray();
@@ -89,7 +105,7 @@ app.get("/book/:id", async (req, res) => {
   res.send(book)
 });
 
-app.post("/books", verifyFirebaseToken, async (req, res) => {
+app.post("/books", verifyFirebaseToken, verifyAdmin, async (req, res) => {
   try {
     const newBook = {
       ...req.body,
@@ -104,7 +120,7 @@ app.post("/books", verifyFirebaseToken, async (req, res) => {
   }
 });
 
-app.put("/book/:id", verifyFirebaseToken, async (req, res) => {
+app.put("/book/:id", verifyFirebaseToken, verifyAdmin, async (req, res) => {
   try {
     const id = req.params.id;
     const updateData = {
